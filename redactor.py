@@ -8,6 +8,7 @@ import json
 import spacy
 import re
 from google.cloud import language_v1
+
 print('Loading spaCy model...')
 nlp = spacy.load('en_core_web_lg')
 print('spaCy model loaded.')
@@ -15,12 +16,16 @@ print('spaCy model loaded.')
 os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = 'data-engineering-434614-245ce8e4d3e0.json'
 EMAIL_HEADERS = ['From:', 'To:', 'Cc:', 'Bcc:', 'Subject:', 'X-From:', 'X-To:', 'X-cc:', 'X-bcc:', 'X-Folder:', 'X-Origin:', 'X-FileName:']
 
+
+
 def get_input_files(input_patterns):
     files = []
     for pattern in input_patterns:
         matched_files = glob.glob(pattern)
         files.extend(matched_files)
     return files
+
+
 
 def verify_person_name_via_gnlp(name):
     """Verify if the provided name is recognized as a PERSON entity using Google NLP."""
@@ -33,18 +38,7 @@ def verify_person_name_via_gnlp(name):
     response = client.analyze_entities(document=document)
     return any(entity.type == language_v1.Entity.Type.PERSON for entity in response.entities)
 
-def extract_emails(document):
-    # Regex pattern to match email addresses
-    email_pattern = r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
-    
-    # Find all occurrences of the pattern in the document
-    emails = re.findall(email_pattern, document)
-    
-    # Remove duplicates by converting the list to a set and then back to a list
-    unique_emails = list(set(emails))
-    processed_name = process_name_comma_format(unique_emails)
-    print(processed_name)
-    return unique_emails
+
 
 def process_name_comma_format(name):
     # Format names that might be in 'Lastname, Firstname' format or email format.
@@ -67,22 +61,29 @@ def process_name_comma_format(name):
                 name = ' '.join(parts[::-1])
     return name
 
+
+
 def sanitize_name(name):
     # Clean unwanted characters from a name and normalize the spacing.
     name = re.sub(r'[<>"\']', '', name)  # Remove unwanted characters
     name = re.sub(r'\s+', ' ', name).strip()  # Normalize extra spaces
     return name
 
+
+
 def extract_and_validate_names(doc):
     # Extract names using SpaCy and optionally verify them with Google NLP.
     validated_names = []
     for ent in doc.ents:
-        if ent.label_ in ["PERSON"] or verify_person_name_via_gnlp(ent.text):
+        if ent.label_ in ["PERSON"] :
+        # or verify_person_name_via_gnlp(ent.text):
             print(ent.text)
             formatted_name = process_name_comma_format(ent.text)
             if formatted_name:  # Ensure the cleaned name is not empty
                 validated_names.append((formatted_name, ent.start_char, ent.end_char))
     return validated_names
+
+
 
 def mask_names_in_text(text):
     # Redact names found in the text using SpaCy and optionally verify using Google NLP.
@@ -103,6 +104,9 @@ def mask_names_in_text(text):
     total_names_masked += email_name_count
 
     return masked_text, total_names_masked
+
+
+
 def mask_names_in_email_addresses(text):
     # Extract names from email addresses and mask the name part.
     # Regular expression for detecting email addresses.
@@ -133,6 +137,8 @@ def mask_names_in_email_addresses(text):
     
     return masked_text, total_emails_masked
 
+
+
 def apply_mask(text, start_pos, end_pos):
     # Apply a censorship mask to a specified portion of text, adjusting for new lines.
     segment = text[start_pos:end_pos]
@@ -151,21 +157,27 @@ def redact_dates(text):
     offsets = []
     
     # Use SpaCy NER
+   
+    
+    
+    # # Add regex patterns for date
+    dict_for_date_match = {"label":"DATE","pattern":[{"TEXT":{"REGEX":"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b"}},{"TEXT":{"REGEX":"\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2}(?:st|nd|rd|th)?(?:,\s+\d{4})?\b"}},{"TEXT":{"REGEX":"^\w{3},\s\d{2}\s\w{3}\s\d{4}$"}},{"TEXT":{"REGEX":"\b\d{1,2}[/-]\d{1,2}"}}]}
+    # date_patterns = [
+    #     r'\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b',  # Matches 4/9/2025, 22/2/22
+    #     r'\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2}(?:st|nd|rd|th)?(?:,\s+\d{4})?\b',  # Matches April 9th, 2025
+    #     r'^\w{3},\s\d{2}\s\w{3}\s\d{4}$' # Matches Mon, 10 Dec 2001
+    #     r'\b\d{1,2}[/-]\d{1,2}'   # Matching 09/24 pattern
+    # ]
+    
+    ruller = nlp.add_pipe("entity_ruler",before="ner")
+    ruller.add_patterns([dict_for_date_match])
+    
     doc = nlp(text)
     spans = [ent for ent in doc.ents if ent.label_ == 'DATE']
-    
-    # # Add regex patterns for dates
-    date_patterns = [
-        r'\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b',  # Matches 4/9/2025, 22/2/22
-        r'\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2}(?:st|nd|rd|th)?(?:,\s+\d{4})?\b',  # Matches April 9th, 2025
-        r'^\w{3},\s\d{2}\s\w{3}\s\d{4}$' # Matches Mon, 10 Dec 2001
-        r'\b\d{1,2}[/-]\d{1,2}'   # Matching 09/24 pattern
-    ]
-    
-    for pattern in date_patterns:
-        for match in re.finditer(pattern, redacted_text, flags=re.IGNORECASE):
-            start, end = match.span()
-            spans.append({'start_char': start, 'end_char': end})
+    # for pattern in date_patterns:
+    #     for match in re.finditer(pattern, redacted_text, flags=re.IGNORECASE):
+    #         start, end = match.span()
+    #         spans.append({'start_char': start, 'end_char': end})
     
     # Remove duplicates and sort
     unique_spans = set()
@@ -184,6 +196,7 @@ def redact_dates(text):
     
     return redacted_text, count
 
+
 # Regex pattern for phone numbers
 phone_number_regex = re.compile(
     r'''
@@ -192,9 +205,13 @@ phone_number_regex = re.compile(
     (\d{3}[\s-]?\d{4}|\d{2,4}[\s-]?\d{2,4}[\s-]?\d{2,4}) # Main number
     ''', re.VERBOSE | re.IGNORECASE)
 
+
+
 def validate_phone_number_format(text):
     # Check if a given string is likely a phone number.
     return re.match(r'\+\d{1,4}\s\d+', text) or any(sep in text for sep in ['-', ' ']) and len(re.sub(r'\D', '', text)) >= 7
+
+
 
 def extract_addresses_using_gnlp(text):
     # Use Google Cloud NLP to detect address and location entities in the text.
@@ -209,6 +226,8 @@ def extract_addresses_using_gnlp(text):
     ]
     return detected_addresses
 
+
+
 def detect_concept_related_sentences(text, concepts):
     # Identify sentences in the text that are related to the specified concepts.
     doc = nlp(text)
@@ -218,12 +237,19 @@ def detect_concept_related_sentences(text, concepts):
     for sent in doc.sents:
         for concept in concepts:
             concept_doc = nlp(concept)
+            print(sent)
+            sent.similarity(concept_doc)
             # Check if the concept is directly mentioned or has a high similarity score.
-            if concept.lower() in sent.text.lower() or sent.similarity(concept_doc) > 0.80:
+            if  sent.similarity(concept_doc) > 0.50:
+                
                 concept_matches.append((sent.start_char, sent.end_char))
-                break  # Stop checking other concepts if one matches.
+                # break  # Stop checking other concepts if one matches.
     
     return concept_matches
+
+
+
+
 def mask_concept_related_text(text, concepts):
     # Redact text related to specified concepts.
     matched_concepts = detect_concept_related_sentences(text, concepts)
@@ -240,6 +266,7 @@ def mask_concept_related_text(text, concepts):
         masked_positions.append({'type': 'concept', 'start': start_char, 'end': end_char})
     
     return masked_text, total_concepts_masked
+
 
 def mask_phone_numbers_in_text(text):
     """Identify and mask phone numbers in the given text."""
@@ -282,11 +309,6 @@ def mask_detected_addresses(text):
     return masked_text, total_addresses_masked
 
 
-def redact_concepts(text, concepts):
-    # TODO: Implement concept redaction
-    redacted_text = text
-    count = 0
-    return redacted_text, count
 
 def write_statistics(stats, stats_output):
     stats_json = json.dumps(stats, indent=4)
@@ -301,6 +323,8 @@ def write_statistics(stats, stats_output):
                 f.write(stats_json)
         except Exception as e:
             print(f'Error writing stats to {stats_output}: {e}', file=sys.stderr)
+
+
 
 def main():
     parser = argparse.ArgumentParser(description='Redact sensitive information from text files.')
