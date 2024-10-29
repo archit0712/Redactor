@@ -28,7 +28,7 @@ def get_input_files(input_patterns):
 
 
 def verify_person_name_via_gnlp(name):
-    """Verify if the provided name is recognized as a PERSON entity using Google NLP."""
+    # Verify if the provided name is recognized as a PERSON entity using Google NLP.
     client = language_v1.LanguageServiceClient()
     document = language_v1.Document(
         content=name,
@@ -76,8 +76,6 @@ def extract_and_validate_names(doc):
     validated_names = []
     for ent in doc.ents:
         if ent.label_ in ["PERSON"] :
-        # or verify_person_name_via_gnlp(ent.text):
-            print(ent.text)
             formatted_name = process_name_comma_format(ent.text)
             if formatted_name:  # Ensure the cleaned name is not empty
                 validated_names.append((formatted_name, ent.start_char, ent.end_char))
@@ -110,7 +108,7 @@ def mask_names_in_text(text):
 def mask_names_in_email_addresses(text):
     # Extract names from email addresses and mask the name part.
     # Regular expression for detecting email addresses.
-    email_pattern = re.compile(r'<?(\b[A-Za-z0-9._%+-]+)@([A-Za-z0-9.-]+\.[A-Z|a-z]{2,})>?')
+    email_pattern = re.compile(r'<?(\b[A-Za-z0-9._%+-]+)@([A-Za-z0-9.-]+\.[A-Z|a-z]{2,})>?')    
     email_matches = email_pattern.finditer(text)
     masked_text = text
     total_emails_masked = 0
@@ -151,35 +149,16 @@ def apply_mask(text, start_pos, end_pos):
     return text[:start_pos] + "█" * (end_pos - start_pos) + text[end_pos:]
 
 
+dict_for_date_match = {"label":"DATE","pattern":[{"TEXT":{"REGEX":"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b"}},{"TEXT":{"REGEX":"\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2}(?:st|nd|rd|th)?(?:,\s+\d{4})?\b"}},{"TEXT":{"REGEX":"^\w{3},\s\d{2}\s\w{3}\s\d{4}$"}},{"TEXT":{"REGEX":"\b\d{1,2}[/-]\d{1,2}"}}]}
+ruler = nlp.add_pipe("entity_ruler", before="ner")
+ruler.add_patterns([dict_for_date_match])
+
 def redact_dates(text):
     redacted_text = text
     count = 0
-    offsets = []
-    
-    # Use SpaCy NER
-   
-    
-    
-    # # Add regex patterns for date
-    dict_for_date_match = {"label":"DATE","pattern":[{"TEXT":{"REGEX":"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b"}},{"TEXT":{"REGEX":"\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2}(?:st|nd|rd|th)?(?:,\s+\d{4})?\b"}},{"TEXT":{"REGEX":"^\w{3},\s\d{2}\s\w{3}\s\d{4}$"}},{"TEXT":{"REGEX":"\b\d{1,2}[/-]\d{1,2}"}}]}
-    # date_patterns = [
-    #     r'\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b',  # Matches 4/9/2025, 22/2/22
-    #     r'\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2}(?:st|nd|rd|th)?(?:,\s+\d{4})?\b',  # Matches April 9th, 2025
-    #     r'^\w{3},\s\d{2}\s\w{3}\s\d{4}$' # Matches Mon, 10 Dec 2001
-    #     r'\b\d{1,2}[/-]\d{1,2}'   # Matching 09/24 pattern
-    # ]
-    
-    ruller = nlp.add_pipe("entity_ruler",before="ner")
-    ruller.add_patterns([dict_for_date_match])
-    
+    offsets = [] 
     doc = nlp(text)
     spans = [ent for ent in doc.ents if ent.label_ == 'DATE']
-    # for pattern in date_patterns:
-    #     for match in re.finditer(pattern, redacted_text, flags=re.IGNORECASE):
-    #         start, end = match.span()
-    #         spans.append({'start_char': start, 'end_char': end})
-    
-    # Remove duplicates and sort
     unique_spans = set()
     for span in spans:
         if isinstance(span, dict):
@@ -228,44 +207,51 @@ def extract_addresses_using_gnlp(text):
 
 
 
-def detect_concept_related_sentences(text, concepts):
-    # Identify sentences in the text that are related to the specified concepts.
+def detect_concept_related_sentences(text, concepts, threshold=0.6):
+    # Normalize text to handle line breaks
+    text = normalize_text(text)
     doc = nlp(text)
-    concept_matches = []
-    
-    # Process each sentence and check if it relates to any of the provided concepts.
-    for sent in doc.sents:
+    matched_concepts = []
+
+    for sentence in doc.sents:
+        sentence_text_lower = sentence.text.lower()
         for concept in concepts:
-            concept_doc = nlp(concept)
-            print(sent)
-            sent.similarity(concept_doc)
-            # Check if the concept is directly mentioned or has a high similarity score.
-            if  sent.similarity(concept_doc) > 0.50:
-                
-                concept_matches.append((sent.start_char, sent.end_char))
-                # break  # Stop checking other concepts if one matches.
-    
-    return concept_matches
+            concept_lower = concept.lower()
+            # Direct string matching
+            if concept_lower in sentence_text_lower:
+                matched_concepts.append((sentence.start_char, sentence.end_char))
+                break  # Stop checking other concepts if this sentence matches
+            else:
+                # Calculate similarity between the sentence and the concept
+                concept_doc = nlp(concept)
+                similarity = sentence.similarity(concept_doc)
+                if similarity >= threshold:
+                    matched_concepts.append((sentence.start_char, sentence.end_char))
+                    break
+
+    return matched_concepts
 
 
-
+def normalize_text(text):
+    # Replace line breaks within paragraphs with spaces
+    normalized_text = re.sub(r'(?<!\n)\n(?!\n)', ' ', text)
+    return normalized_text
 
 def mask_concept_related_text(text, concepts):
     # Redact text related to specified concepts.
     matched_concepts = detect_concept_related_sentences(text, concepts)
     masked_text = text
-    total_concepts_masked = 0
+    concept_count = 0
     masked_positions = []
 
     # Sort matched spans in reverse order to avoid index shifting issues.
     matched_concepts = sorted(matched_concepts, key=lambda x: x[0], reverse=True)
-    
     for start_char, end_char in matched_concepts:
         masked_text = apply_mask(masked_text, start_char, end_char)
-        total_concepts_masked += 1
+        concept_count += 1
         masked_positions.append({'type': 'concept', 'start': start_char, 'end': end_char})
     
-    return masked_text, total_concepts_masked
+    return masked_text, concept_count
 
 
 def mask_phone_numbers_in_text(text):
