@@ -1,0 +1,3 @@
+spaCy ,  https://spacy.io/api/doc/ , Helped me understand the pipline structure and helped me with different entity types.
+Google Cloud Language V1 model, https://cloud.google.com/natural-language/docs/reference/rpc/google.cloud.language.v1, Helped me with address recognition and high level entity redaction.
+pyTest, https://docs.pytest.org/en/stable/ , This documentation helped me with creating proper test cases to test different senarios.
