@@ -159,8 +159,6 @@ dict_for_date_match = [
     }
 ]
 
-# dict_for_date_match = [{"label":"DATE","pattern":[{"TEXT":{"REGEX":"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b"}},{"TEXT":{"REGEX":"\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2}(?:st|nd|rd|th)?(?:,\s+\d{4})?\b"}},{"TEXT":{"REGEX":"^\w{3},\s\d{2}\s\w{3}\s\d{4}$"}},{"TEXT":{"REGEX":"\b\d{1,2}[/-]\d{1,2}"}}]},
-#                        {"label":"PERSON","pattern":[{"TEXT":{"REGEX":"\b[A-Z][a-z]*\s[A-Z][a-z]*\b"}},{"TEXT":{"REGEX":"\b[A-Z][a-z]*\b"}},{"TEXT":{"REGEX":"\b[A-Z][a-z]*\s[A-Z]\.\s[A-Z][a-z]*\b"}}]}]
 ruler = nlp.add_pipe("entity_ruler", before="ner")
 ruler.add_patterns(dict_for_date_match)
 
@@ -195,15 +193,9 @@ phone_number_regex = re.compile(
     (\d{3}[\s-]?\d{4}|\d{2,4}[\s-]?\d{2,4}[\s-]?\d{2,4}) # Main number
     ''', re.VERBOSE | re.IGNORECASE)
 
-
-
 def validate_phone_number_format(text):
     # Check if a given string is likely a phone number.
     return re.match(r'\+\d{1,4}\s\d+', text) or any(sep in text for sep in ['-', ' ']) and len(re.sub(r'\D', '', text)) >= 7
-
-
-
-
 
 
 def detect_concept_related_sentences(text, concepts, threshold=0.75):
@@ -254,7 +246,7 @@ def mask_concept_related_text(text, concepts):
 
 
 def mask_phone_numbers_in_text(text):
-    """Identify and mask phone numbers in the given text."""
+    # Identify and mask phone numbers in the given text.
     phone_matches = re.finditer(phone_number_regex, text)
     masked_text = text
     total_phones_masked = 0
@@ -271,7 +263,7 @@ def mask_phone_numbers_in_text(text):
     return masked_text, total_phones_masked
 
 def mask_detected_addresses(text):
-    """Redact detected addresses from the text using Google NLP and regex patterns."""
+    # Redact detected addresses from the text using Google NLP and regex patterns.
     masked_text = text
     total_addresses_masked = 0
 
@@ -302,7 +294,7 @@ def mask_detected_addresses(text):
     return masked_text, total_addresses_masked
 
 def extract_addresses_using_gnlp(text):
-    """Extract address components using Google NLP and return them as individual segments."""
+    # Extract address components using Google NLP and return them as individual segments.
     client = language_v1.LanguageServiceClient()
     document = language_v1.Document(content=text, type_=language_v1.Document.Type.PLAIN_TEXT)
     response = client.analyze_entities(document=document)
@@ -315,7 +307,7 @@ def extract_addresses_using_gnlp(text):
     return detected_addresses
 
 def consolidate_addresses(components):
-    """Consolidate individual address components into full address strings."""
+    # Consolidate individual address components into full address strings.
     consolidated_addresses = []
     current_address = []
 
@@ -464,8 +456,11 @@ def main():
 
         # Write censored text to output file
         output_file_name = os.path.basename(file_path) + '.censored'
+        
         output_file_path = os.path.join(output_dir, output_file_name)
+        print(output_file_path)
         with open(output_file_path, 'w', encoding='utf-8') as f:
+            print(text)
             f.write(text)
 
     # Write statistics
