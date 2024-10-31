@@ -11,9 +11,9 @@ from google.cloud import language_v1
 from warnings import filterwarnings
 
 filterwarnings("ignore", category=SyntaxWarning)
-print('Loading spaCy model...')
+# print('Loading spaCy model...')
 nlp = spacy.load('en_core_web_lg')
-print('spaCy model loaded.')
+# print('spaCy model loaded.')
 
 os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = 'data-engineering-434614-245ce8e4d3e0.json'
 EMAIL_HEADERS = ['From:', 'To:', 'Cc:', 'Bcc:', 'Subject:', 'X-From:', 'X-To:', 'X-cc:', 'X-bcc:', 'X-Folder:', 'X-Origin:', 'X-FileName:']
