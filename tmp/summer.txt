@@ -1,24 +1,9 @@
-Message-ID: <32051761.1075863606815.JavaMail.evans@thyme>
-Date: Wed, 23 Aug 2000 03:03:00 -0700 (PDT)
-From: robert.badeer@enron.com
-To: tim.belden@enron.com, teri.whitcomb@enron.com, kathy.axford@enron.com, 
-	mitch.mcclintock@enron.com
-Subject: Out of Ofice
-Mime-Version: 1.0
-Content-Type: text/plain; charset=us-ascii
-Content-Transfer-Encoding: 7bit
-X-From: Robert Badeer
-X-To: Tim Belden, Teri Whitcomb, Kathy Axford, Mitch McClintock
-X-cc: 
-X-bcc: 
-X-Folder: \Robert_Badeer_Aug2000\Notes Folders\'sent mail
-X-Origin: Badeer-R
-X-FileName: rbadeer.nsf
-I will be out of the office on Friday, Monday and Tuesday for vacation. I will be able to be reached by cell phone if necessary.
-John Doe and Jane Smith have been working together at Acme Corporation for over five years. Recently, they met with Michael Johnson and Emily Brown to discuss a new project involving Sarah Davis and Robert Wilson. 
-John and Jane agreed that it would be best if Michael and Emily took the lead on the initiative, as they have extensive experience in managing similar projects. 
-Later that day, John met with Lisa White and Paul Harris to review the company's financials. Lisa expressed concern about the current budget, while Paul suggested they bring in Kevin Clark, a financial consultant, to help. 
-Meanwhile, Jane had a separate meeting with Alice Miller and David Moore to discuss marketing strategies. Alice emphasized the importance of social media, while David proposed a traditional advertising approach. 
-After the meetings, John called Mark Thompson to get his input, and Jane emailed Nancy Lewis for her thoughts. ßThe next morning, John and Jane had breakfast with Laura Hall and Steven Scott to finalize the details. 
-They also made sure to loop in Christine Turner, Peter Phillips, and Matthew Collins for their expertise. By the end of the week, they had all the feedback they needed from their team: Karen Foster, Richard Edwards, Anna Bailey, and Eric Green. 
-They were ready to move forward with the project, confident in the support of their colleagues. 
+John Smith lives at 1600 Pennsylvania Ave NW, Washington, DC 20500.
+Sarah's address is 10 Downing Street, Westminster, London SW1A 2AA, UK.
+Mark recently moved to 742 Evergreen Terrace, Springfield, IL 62704.
+Alice's office is located at 350 Fifth Avenue, New York, NY 10118.
+They met at Rue de Rivoli, 75001 Paris, France for a meeting.
+David's warehouse is at 5-7 Oranienburger Str., 10178 Berlin, Germany.
+The hotel is located at 1234 Elm St, Los Angeles, CA 90001.
+The office is at Unit 3, 25 Baker Street, Manchester M1 3AX, United Kingdom.
+The event is being held at 500 S Buena Vista St, Burbank, CA 91521.

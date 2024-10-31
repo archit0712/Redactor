@@ -8,7 +8,9 @@ import json
 import spacy
 import re
 from google.cloud import language_v1
+from warnings import filterwarnings
 
+filterwarnings("ignore", category=SyntaxWarning)
 print('Loading spaCy model...')
 nlp = spacy.load('en_core_web_lg')
 print('spaCy model loaded.')
@@ -82,9 +84,36 @@ def extract_and_validate_names(doc):
     return validated_names
 
 
+def mask_names_in_email_addresses(text):
+    # Regular expression to find email addresses
+    email_regex = r'[\w\.-]+@[\w\.-]+'
+    masked_text = text
+    total_names_masked = 0
+    offset = 0  # To adjust positions after masking
+
+    # Find all email addresses in the text
+    matches = list(re.finditer(email_regex, text))
+    for match in matches:
+        email = match.group()
+        start_pos = match.start() + offset
+        end_pos = match.end() + offset
+
+        # Split the email into local part and domain
+        local_part, domain = email.split('@', 1)
+        # Mask the local part
+        masked_local = '█' * len(local_part)
+        masked_email = masked_local + '@' + domain
+
+        # Replace the email in the text with the masked email
+        masked_text = masked_text[:start_pos] + masked_email + masked_text[end_pos:]
+        # Update the offset
+        offset += len(masked_email) - (end_pos - start_pos)
+        total_names_masked += 1
+
+    return masked_text, total_names_masked
 
 def mask_names_in_text(text):
-    # Redact names found in the text using SpaCy and optionally verify using Google NLP.
+    # Redact names found in the text using SpaCy
     doc = nlp(text)
     validated_names = extract_and_validate_names(doc)
     masked_text = text
@@ -92,6 +121,8 @@ def mask_names_in_text(text):
     masked_positions = []
 
     # First, mask names extracted from regular text using SpaCy.
+    # Sort names by start position in reverse order to avoid index shifting
+    validated_names = sorted(validated_names, key=lambda x: x[1], reverse=True)
     for name, start_pos, end_pos in validated_names:
         masked_text = apply_mask(masked_text, start_pos, end_pos)
         total_names_masked += 1
@@ -102,38 +133,6 @@ def mask_names_in_text(text):
     total_names_masked += email_name_count
 
     return masked_text, total_names_masked
-
-
-
-def mask_names_in_email_addresses(text):
-    # Extract names from email addresses and mask the name part.
-    # Regular expression for detecting email addresses.
-    email_pattern = re.compile(r'<?(\b[A-Za-z0-9._%+-]+)@([A-Za-z0-9.-]+\.[A-Z|a-z]{2,})>?')    
-    email_matches = email_pattern.finditer(text)
-    masked_text = text
-    total_emails_masked = 0
-    masked_positions = []
-
-    for match in email_matches:
-        full_email = match.group(0)
-        name_part, domain_part = match.groups()
-        
-        # Clean and format the name part by replacing common separators with spaces.
-        cleaned_name = name_part.replace('.', ' ').replace('_', ' ').title()
-        
-        # Reverse comma-separated names to match "Lastname, Firstname" format.
-        if ',' in cleaned_name:
-            parts = cleaned_name.split(',')
-            cleaned_name = ' '.join(parts[::-1]).strip()
-        
-        # Apply the mask to the name part, keeping the domain intact.
-        start_index, end_index = match.span(1)
-        masked_text = masked_text[:start_index] + '█' * len(cleaned_name) + masked_text[end_index:]
-        
-        total_emails_masked += 1
-        masked_positions.append({'type': 'email_name', 'start': start_index, 'end': end_index})
-    
-    return masked_text, total_emails_masked
 
 
 
@@ -148,10 +147,22 @@ def apply_mask(text, start_pos, end_pos):
     
     return text[:start_pos] + "█" * (end_pos - start_pos) + text[end_pos:]
 
+dict_for_date_match = [
+    {
+        "label": "DATE",
+        "pattern": [
+            {"TEXT": {"REGEX": r"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b"}},               # Format: MM/DD/YYYY or similar
+            {"TEXT": {"REGEX": r"\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2}(?:st|nd|rd|th)?(?:,\s+\d{4})?\b"}},  # Format: "Jan 1, 2024" or similar
+            {"TEXT": {"REGEX": r"^\w{3},\s\d{2}\s\w{3}\s\d{4}$"}},                    # Format: "Mon, 01 Jan 2024"
+            {"TEXT": {"REGEX": r"\b\d{1,2}[/-]\d{1,2}\b"}}                            # Format: MM/DD
+        ]
+    }
+]
 
-dict_for_date_match = {"label":"DATE","pattern":[{"TEXT":{"REGEX":"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b"}},{"TEXT":{"REGEX":"\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2}(?:st|nd|rd|th)?(?:,\s+\d{4})?\b"}},{"TEXT":{"REGEX":"^\w{3},\s\d{2}\s\w{3}\s\d{4}$"}},{"TEXT":{"REGEX":"\b\d{1,2}[/-]\d{1,2}"}}]}
+# dict_for_date_match = [{"label":"DATE","pattern":[{"TEXT":{"REGEX":"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b"}},{"TEXT":{"REGEX":"\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2}(?:st|nd|rd|th)?(?:,\s+\d{4})?\b"}},{"TEXT":{"REGEX":"^\w{3},\s\d{2}\s\w{3}\s\d{4}$"}},{"TEXT":{"REGEX":"\b\d{1,2}[/-]\d{1,2}"}}]},
+#                        {"label":"PERSON","pattern":[{"TEXT":{"REGEX":"\b[A-Z][a-z]*\s[A-Z][a-z]*\b"}},{"TEXT":{"REGEX":"\b[A-Z][a-z]*\b"}},{"TEXT":{"REGEX":"\b[A-Z][a-z]*\s[A-Z]\.\s[A-Z][a-z]*\b"}}]}]
 ruler = nlp.add_pipe("entity_ruler", before="ner")
-ruler.add_patterns([dict_for_date_match])
+ruler.add_patterns(dict_for_date_match)
 
 def redact_dates(text):
     redacted_text = text
@@ -192,22 +203,10 @@ def validate_phone_number_format(text):
 
 
 
-def extract_addresses_using_gnlp(text):
-    # Use Google Cloud NLP to detect address and location entities in the text.
-    client = language_v1.LanguageServiceClient()
-    document = language_v1.Document(content=text, type_=language_v1.Document.Type.PLAIN_TEXT)
-    response = client.analyze_entities(document=document)
-
-    # Extract entities that represent addresses or locations.
-    detected_addresses = [
-        (entity.name, entity.salience) for entity in response.entities
-        if entity.type_ in [language_v1.Entity.Type.ADDRESS, language_v1.Entity.Type.LOCATION]
-    ]
-    return detected_addresses
 
 
 
-def detect_concept_related_sentences(text, concepts, threshold=0.6):
+def detect_concept_related_sentences(text, concepts, threshold=0.75):
     # Normalize text to handle line breaks
     text = normalize_text(text)
     doc = nlp(text)
@@ -271,30 +270,69 @@ def mask_phone_numbers_in_text(text):
     
     return masked_text, total_phones_masked
 
-
 def mask_detected_addresses(text):
-    """Redact detected addresses from the text using Google NLP."""
-    detected_addresses = extract_addresses_using_gnlp(text)
+    """Redact detected addresses from the text using Google NLP and regex patterns."""
     masked_text = text
     total_addresses_masked = 0
-    masked_positions = []
 
-    for address, _ in detected_addresses:
-        # Create a regex pattern to match the exact address in the text.
+    # Regex patterns for common address formats
+    address_patterns = [
+        r"\d{1,5}\s\w+\s(?:St|Street|Ave|Avenue|Rd|Road|Blvd|Boulevard|Dr|Drive|Ln|Lane)\.?(\s\w+)?",   # E.g., 123 Main St or 123 Main Street Springfield
+        r"\d{1,5}\s\w+\s\w+\s\w+,\s\w+\s\d{5}",                                                          # E.g., 456 Elm St., New York, NY 10001
+        r"\d{1,5}\s\w+\s\w+,\s\w+,\s[A-Z]{2}\s\d{5}",                                                    # E.g., 123 Main St., Springfield, IL 62704
+    ]
+
+    # Mask detected addresses with Google NLP, consolidating related address components
+    detected_addresses = consolidate_addresses(extract_addresses_using_gnlp(text))
+    for address in detected_addresses:
+        # Mask the full address in the text if found
         address_pattern = re.escape(address)
-        
-        # Use re.sub to replace the address with a mask.
         masked_text = re.sub(address_pattern, '█' * len(address), masked_text)
-        
-        # Count this redaction and store its position.
         total_addresses_masked += 1
-        start_index = masked_text.find('█' * len(address))
-        end_index = start_index + len(address)
-        masked_positions.append({'type': 'address', 'start': start_index, 'end': end_index})
-    
+
+    # Additionally, mask common address formats using regex
+    for pattern in address_patterns:
+        matches = re.finditer(pattern, masked_text)
+        for match in matches:
+            start, end = match.span()
+            
+            masked_text = masked_text[:start] + '█' * (end - start) + masked_text[end:]
+            total_addresses_masked += 1
+
     return masked_text, total_addresses_masked
 
+def extract_addresses_using_gnlp(text):
+    """Extract address components using Google NLP and return them as individual segments."""
+    client = language_v1.LanguageServiceClient()
+    document = language_v1.Document(content=text, type_=language_v1.Document.Type.PLAIN_TEXT)
+    response = client.analyze_entities(document=document)
 
+    # Extract entities that represent addresses or locations.
+    detected_addresses = [
+        entity.name for entity in response.entities
+        if entity.type_ in [language_v1.Entity.Type.ADDRESS, language_v1.Entity.Type.LOCATION]
+    ]
+    return detected_addresses
+
+def consolidate_addresses(components):
+    """Consolidate individual address components into full address strings."""
+    consolidated_addresses = []
+    current_address = []
+
+    for component in components:
+        # Check if this component should be part of the current address
+        if current_address and not component[0].isnumeric():
+            # If the current component is not numeric and we have an ongoing address, finalize it
+            consolidated_addresses.append(" ".join(current_address))
+            current_address = []
+        
+        current_address.append(component)
+
+    # Add any remaining components as a final address
+    if current_address:
+        consolidated_addresses.append(" ".join(current_address))
+
+    return consolidated_addresses
 
 def write_statistics(stats, stats_output):
     stats_json = json.dumps(stats, indent=4)
@@ -338,7 +376,7 @@ def main():
 
     args = parser.parse_args()
     
-    print(args)
+    # print(args)
     # Get list of input files
     input_files = get_input_files(args.input)
 
